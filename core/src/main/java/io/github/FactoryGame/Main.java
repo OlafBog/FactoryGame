@@ -37,15 +37,18 @@ public class Main extends ApplicationAdapter {
         batch = new SpriteBatch();
 
         camera = new OrthographicCamera();
-        viewport = new FitViewport(WORLD_WIDTH, WORLD_HEIGHT, camera);
+
+        //viewport = new FitViewport(WORLD_WIDTH, WORLD_HEIGHT, camera);
 
         grassTex = new Texture("grass.png");
         stoneTex = new Texture("stone.png");
         dirtTex  = new Texture("dirt.png");
 
         // Create and generate world
-        world = new World(35, 25);
+        world = new World(10, 10);
         WorldGenerator.generate(world);
+
+        viewport = new FitViewport(world.width, world.height, camera);
     }
 
     @Override
@@ -101,7 +104,7 @@ public class Main extends ApplicationAdapter {
                 }
 
                 // x,y are tile coordinates; multiply by tile size to get world coords
-                batch.draw(tex, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                batch.draw(tex, x, y, 1, 1);
             }
         }
 
