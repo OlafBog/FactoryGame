@@ -219,6 +219,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
             if (camera.zoom < 0.1f) camera.zoom = 0.1f;
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) drawNumbers = !drawNumbers;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) Gdx.app.exit();
     }
 
     @Override
