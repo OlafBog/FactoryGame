@@ -68,4 +68,12 @@ public class World {
     private long getChunkKey(int x, int y) {
         return (long)x << 32 | (y & 0xFFFFFFFFL);
     }
+
+    public float getTemperatureAt(int worldX, int worldY) {
+        return chunkGenerator.getTemperature(worldX, worldY);
+    }
+
+    public float getHumidityAt(int worldX, int worldY) {
+        return chunkGenerator.getHumidity(worldX, worldY);
+    }
 }

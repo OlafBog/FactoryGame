@@ -1,15 +1,15 @@
 package io.github.FactoryGame.InfiniteWorldGen;
 
-import com.badlogic.gdx.math.MathUtils;
-
 public class ChunkGenerator {
     private FastNoiseLite temperatureNoise;
     private FastNoiseLite humidityNoise;
     private FastNoiseLite heightNoise;
     private FastNoiseLite resourceNoise;
-    private FastNoiseLite edgeNoise;
+    private FastNoiseLite edgeNoiseBig;
+    private FastNoiseLite edgeNoiseSmall;
 
     private float biomeSizeMod = 0.005f;
+    private float edgeNoiseStrength = 0.05f;
 
     public ChunkGenerator(long seed) {
         // 1. TEMPERATURA
@@ -34,10 +34,14 @@ public class ChunkGenerator {
         resourceNoise.SetFrequency(0.1f);
 
         // 5. SZUM KRAWĘDZI (Jitter)
-        edgeNoise = new FastNoiseLite((int)seed + 4000);
-        edgeNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        edgeNoiseBig = new FastNoiseLite((int)seed + 4000);
+        edgeNoiseBig.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         // Częstotliwość szumu krawędzi - więcej - bardziej poszarpane
-        edgeNoise.SetFrequency(0.05f);
+        edgeNoiseBig.SetFrequency(0.05f);
+
+        edgeNoiseSmall = new FastNoiseLite((int)seed + 4500);
+        edgeNoiseSmall.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        edgeNoiseSmall.SetFrequency(0.3f);
     }
 
     public void fillChunk(Chunk chunk, int chunkX, int chunkY) {
@@ -53,10 +57,10 @@ public class ChunkGenerator {
                 float baseHum = humidityNoise.GetNoise(globalX, globalY);
 
                 // Pobieramy wartość zakłócenia (-1 do 1)
-                float edgeVal = edgeNoise.GetNoise(globalX, globalY);
+                float edgeVal = edgeNoiseBig.GetNoise(globalX, globalY) + edgeNoiseSmall.GetNoise(globalX, globalY)/6;
 
                 // Poszarpanie krawędzi - więcej - bardziej
-                float distortion = edgeVal * 0.05f;
+                float distortion = edgeVal * edgeNoiseStrength;
 
                 // Zakłucenie krawędzi
                 float finalTemp = baseTemp + distortion;
@@ -144,4 +148,13 @@ public class ChunkGenerator {
             }
         }
     }
+
+    public float getTemperature(int x, int y) {
+        return temperatureNoise.GetNoise(x, y) + edgeNoiseBig.GetNoise(x, y) * edgeNoiseStrength;
+    }
+
+    public float getHumidity(int x, int y) {
+        return humidityNoise.GetNoise(x, y) + edgeNoiseBig.GetNoise(x, y) * edgeNoiseStrength;
+    }
+
 }

@@ -34,8 +34,10 @@ public class Main extends ApplicationAdapter implements InputProcessor {
     private final int TILE_SIZE = 32;
     private final float CAMERA_SPEED = 600.0f;
     private java.util.Map<BiomeType, BiomePalette> biomeColors;
-
+    private boolean debugTemperature = false;
+    private boolean debugHumidity = false;
     private boolean drawNumbers = false;
+    private Texture whiteTexture;
 
     @Override
     public void create() {
@@ -51,6 +53,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
         gameWorld = new World(1234567890);
         generateDebugTextures();
+        whiteTexture = createSolidTexture(Color.WHITE);
 
         Gdx.input.setInputProcessor(this);
     }
@@ -75,52 +78,73 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
         for (int x = startX; x <= endX; x++) {
             for (int y = startY; y <= endY; y++) {
+                float drawX = x * TILE_SIZE;
+                float drawY = y * TILE_SIZE;
 
-                LayerType layer = gameWorld.getLayerAt(x, y);
-                BiomeType biome = gameWorld.getBiomeAt(x, y);
-                Texture tex = getTextureForLayer(layer);
+                // --- SEKCJA DEBUGOWANIA ---
+                if (debugTemperature || debugHumidity) {
+                    float noiseValue;
 
-                // Wewnątrz pętli for (x, y)...
-                if (tex != null) {
-                    // 1. Pobierz paletę dla aktualnego biomu
-                    BiomePalette palette = biomeColors.get(biome);
-
-                    // Zabezpieczenie na wypadek błędu (gdyby mapa nie miała biomu)
-                    if (palette == null) palette = biomeColors.get(BiomeType.H1T1);
-
-                    // 2. Ustaw kolor w zależności od warstwy
-                    // (Zakładam, że LAYER1 to Trawa/Powierzchnia, a LAYER2 to Ziemia)
-                    if (layer == LayerType.LAYER1) {
-                        batch.setColor(palette.surface);
+                    if (debugTemperature) {
+                        noiseValue = gameWorld.getTemperatureAt(x, y);
+                    } else {
+                        noiseValue = gameWorld.getHumidityAt(x, y);
                     }
-                    else if (layer == LayerType.LAYER2) {
-                        batch.setColor(palette.subsoil);
-                    }
-                    else {
-                        // Dla kamienia, bedrocka itp. resetujemy na biały
+
+                    // Oblicz kolor: Niebieski (-1) -> Zielony (0) -> Czerwony (1)
+                    Color debugColor = getHeatmapColor(noiseValue);
+
+                    batch.setColor(debugColor);
+                    batch.draw(whiteTexture, drawX, drawY, TILE_SIZE, TILE_SIZE);
+                    batch.setColor(Color.WHITE); // Reset koloru
+                }
+                // --- NORMALNE RYSOWANIE GRY ---
+                else {
+                    LayerType layer = gameWorld.getLayerAt(x, y);
+                    BiomeType biome = gameWorld.getBiomeAt(x, y);
+                    Texture tex = getTextureForLayer(layer);
+
+                    // Wewnątrz pętli for (x, y)...
+                    if (tex != null) {
+                        // 1. Pobierz paletę dla aktualnego biomu
+                        BiomePalette palette = biomeColors.get(biome);
+
+                        // Zabezpieczenie na wypadek błędu (gdyby mapa nie miała biomu)
+                        if (palette == null) palette = biomeColors.get(BiomeType.H1T1);
+
+                        // 2. Ustaw kolor w zależności od warstwy
+                        // (Zakładam, że LAYER1 to Trawa/Powierzchnia, a LAYER2 to Ziemia)
+                        if (layer == LayerType.LAYER1) {
+                            batch.setColor(palette.surface);
+                        } else if (layer == LayerType.LAYER2) {
+                            batch.setColor(palette.subsoil);
+                        } else {
+                            // Dla kamienia, bedrocka itp. resetujemy na biały
+                            batch.setColor(Color.WHITE);
+                        }
+
+                        // 3. Rysuj
+                        batch.draw(tex, x * TILE_SIZE, y * TILE_SIZE);
+
+                        // 4. Reset koloru dla reszty elementów
                         batch.setColor(Color.WHITE);
                     }
 
-                    // 3. Rysuj
-                    batch.draw(tex, x * TILE_SIZE, y * TILE_SIZE);
+                    // Surowce
+                    ResourceType res = gameWorld.getResourceAt(x, y);
+                    if (res == ResourceType.GOLD) {
+                        batch.draw(texGold, x * TILE_SIZE + 8, y * TILE_SIZE + 8);
+                    }
 
-                    // 4. Reset koloru dla reszty elementów
-                    batch.setColor(Color.WHITE);
-                }
-
-                // Surowce
-                ResourceType res = gameWorld.getResourceAt(x, y);
-                if (res == ResourceType.GOLD) {
-                    batch.draw(texGold, x * TILE_SIZE + 8, y * TILE_SIZE + 8);
-                }
-
-                // Napisy (głębokość)
-                if (layer != LayerType.BEDROCK && layer != LayerType.AIR) {
-                    int layersLeft = gameWorld.getLayersLeftAt(x, y);
-                    if (layersLeft <= 3) font.setColor(Color.RED);
-                    else font.setColor(Color.WHITE);
-                    // Odkomentuj, jeśli chcesz widzieć numerki
-                    if (drawNumbers) font.draw(batch, String.valueOf(layersLeft), x * TILE_SIZE + 10, y * TILE_SIZE + 22);
+                    // Napisy (głębokość)
+                    if (layer != LayerType.BEDROCK && layer != LayerType.AIR) {
+                        int layersLeft = gameWorld.getLayersLeftAt(x, y);
+                        if (layersLeft <= 3) font.setColor(Color.RED);
+                        else font.setColor(Color.WHITE);
+                        // Odkomentuj, jeśli chcesz widzieć numerki
+                        if (drawNumbers)
+                            font.draw(batch, String.valueOf(layersLeft), x * TILE_SIZE + 10, y * TILE_SIZE + 22);
+                    }
                 }
             }
         }
@@ -220,6 +244,14 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) drawNumbers = !drawNumbers;
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) Gdx.app.exit();
+        if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
+            debugTemperature = !debugTemperature;
+            debugHumidity = false;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.C)) {
+            debugHumidity = !debugHumidity;
+            debugTemperature = false;
+        }
     }
 
     @Override
@@ -239,8 +271,8 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         pixmap.setColor(color);
         pixmap.fill();
         // Dodajemy ramkę dla lepszej widoczności kratek
-        pixmap.setColor(color.cpy().mul(0.8f));
-        pixmap.drawRectangle(0, 0, w, h);
+        //pixmap.setColor(color.cpy().mul(0.8f));
+        //pixmap.drawRectangle(0, 0, w, h);
         Texture tex = new Texture(pixmap);
         pixmap.dispose();
         return tex;
@@ -255,6 +287,28 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         texGrass.dispose(); texDirt.dispose(); texDarkSoil.dispose();
         texStone.dispose(); texDeepStone.dispose(); texHardStone.dispose();
         texBedrock.dispose(); texGold.dispose();
+    }
+
+    private Color getHeatmapColor(float value) {
+        // value jest zazwyczaj od -1.0 do 1.0 (zależy od szumu, czasem wykracza)
+
+        // Upewnij się, że wartość jest w zakresie -1 do 1
+        float clamped = Math.max(-1f, Math.min(1f, value));
+
+        if (clamped < 0) {
+            // Od -1 (Niebieski) do 0 (Zielony)
+            // Interpolacja: im bliżej 0, tym mniej niebieskiego, więcej zielonego
+            float ratio = Math.abs(clamped); // 1.0 to pełny niebieski, 0.0 to zielony
+            return new Color(0f, 1f - ratio, ratio, 1f);
+            // Powyższe to proste mieszanie.
+            // Ładniejszy gradient (Lerp):
+            // return new Color(Color.GREEN).lerp(Color.BLUE, ratio);
+        } else {
+            // Od 0 (Zielony) do 1 (Czerwony)
+            float ratio = clamped;
+            return new Color(ratio, 1f - ratio, 0f, 1f);
+            // Lub: return new Color(Color.GREEN).lerp(Color.RED, ratio);
+        }
     }
 
     // Puste metody interfejsu InputProcessor
