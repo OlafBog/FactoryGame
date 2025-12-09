@@ -36,11 +36,11 @@ public class ChunkGenerator {
         // 5. SZUM KRAWĘDZI (Jitter)
         edgeNoiseBig = new FastNoiseLite((int)seed + 4000);
         edgeNoiseBig.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        // Częstotliwość szumu krawędzi - więcej - bardziej poszarpane
         edgeNoiseBig.SetFrequency(0.05f);
 
         edgeNoiseSmall = new FastNoiseLite((int)seed + 4500);
         edgeNoiseSmall.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        // Częstotliwość szumu krawędzi - więcej - bardziej poszarpane
         edgeNoiseSmall.SetFrequency(0.3f);
     }
 
@@ -57,7 +57,7 @@ public class ChunkGenerator {
                 float baseHum = humidityNoise.GetNoise(globalX, globalY);
 
                 // Pobieramy wartość zakłócenia (-1 do 1)
-                float edgeVal = edgeNoiseBig.GetNoise(globalX, globalY) + edgeNoiseSmall.GetNoise(globalX, globalY)/6;
+                float edgeVal = edgeNoiseBig.GetNoise(globalX, globalY)*5f/6f + edgeNoiseSmall.GetNoise(globalX, globalY)/6f;
 
                 // Poszarpanie krawędzi - więcej - bardziej
                 float distortion = edgeVal * edgeNoiseStrength;
@@ -150,11 +150,11 @@ public class ChunkGenerator {
     }
 
     public float getTemperature(int x, int y) {
-        return temperatureNoise.GetNoise(x, y) + edgeNoiseBig.GetNoise(x, y) * edgeNoiseStrength;
+        return temperatureNoise.GetNoise(x, y) + (edgeNoiseBig.GetNoise(x, y)*5/6 + edgeNoiseSmall.GetNoise(x, y)/6) * edgeNoiseStrength;
     }
 
     public float getHumidity(int x, int y) {
-        return humidityNoise.GetNoise(x, y) + edgeNoiseBig.GetNoise(x, y) * edgeNoiseStrength;
+        return humidityNoise.GetNoise(x, y) + (edgeNoiseBig.GetNoise(x, y)*5/6 + edgeNoiseSmall.GetNoise(x, y)/6) * edgeNoiseStrength;
     }
 
 }

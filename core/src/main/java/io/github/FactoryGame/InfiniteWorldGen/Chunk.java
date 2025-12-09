@@ -48,7 +48,7 @@ public class Chunk {
 
     public BiomeType getBiome(int x, int y) {
         int idx = getIndex(x, y);
-        if (idx == -1) return BiomeType.H1T2;
+        if (idx == -1) return BiomeType.H1T1;
         return BiomeType.values()[biomeId[idx]];
     }
 

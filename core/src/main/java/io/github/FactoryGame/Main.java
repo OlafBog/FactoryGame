@@ -289,26 +289,65 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         texBedrock.dispose(); texGold.dispose();
     }
 
+    // Zdefiniuj kolory jako stałe poza funkcją dla optymalizacji
+    private static final Color PURE_BLUE = new Color(0f, 0f, 1f, 1f);
+    private static final Color BLUE_STRONG_GREEN = new Color(0f, 0.8f, 0.9f, 1f);
+
+    private static final Color GREEN_STRONG_BLUE = new Color(0f, 1f, 0.9f, 1f);
+    private static final Color PURE_GREEN = new Color(0f, 1f, 0f, 1f);
+    private static final Color GREEN_STRONG_RED = new Color(0.8f, 0.9f, 0f, 1f);
+
+    private static final Color RED_STRONG_GREEN = new Color(0.9f, 0.8f, 0f, 1f);
+    private static final Color PURE_RED = new Color(1f, 0f, 0f, 1f);
+
+    private static final float THRESHOLD = 0.12f;
+
+    // Obiekt pomocniczy, żeby nie tworzyć nowych 'new Color()' w kółko
+    private final Color tempColor = new Color();
+
+
     private Color getHeatmapColor(float value) {
-        // value jest zazwyczaj od -1.0 do 1.0 (zależy od szumu, czasem wykracza)
+        // 1. Clampowanie wartości do zakresu -1 do 1
+        float val = Math.max(-1f, Math.min(1f, value));
 
-        // Upewnij się, że wartość jest w zakresie -1 do 1
-        float clamped = Math.max(-1f, Math.min(1f, value));
+        Color startColor, endColor;
+        float rangeMin, rangeMax;
 
-        if (clamped < 0) {
-            // Od -1 (Niebieski) do 0 (Zielony)
-            // Interpolacja: im bliżej 0, tym mniej niebieskiego, więcej zielonego
-            float ratio = Math.abs(clamped); // 1.0 to pełny niebieski, 0.0 to zielony
-            return new Color(0f, 1f - ratio, ratio, 1f);
-            // Powyższe to proste mieszanie.
-            // Ładniejszy gradient (Lerp):
-            // return new Color(Color.GREEN).lerp(Color.BLUE, ratio);
+        if (val < -THRESHOLD) {
+            // --- STREFA 1: od -1.0 do -0.12 ---
+            // Od Czystego Niebieskiego do Niebieskiego-Mocno-Zielonego
+            startColor = PURE_BLUE;
+            endColor = BLUE_STRONG_GREEN;
+            rangeMin = -1.0f;
+            rangeMax = -THRESHOLD;
+        } else if (val < 0) {
+            // --- STREFA 2: od -0.12 do 0.0 ---
+            // SKOK! Od Zielonego-Mocno-Niebieskiego do Czystego Zielonego
+            startColor = GREEN_STRONG_BLUE;
+            endColor = PURE_GREEN;
+            rangeMin = -THRESHOLD;
+            rangeMax = 0.0f;
+        } else if (val < THRESHOLD) {
+            // --- STREFA 3: od 0.0 do 0.12 ---
+            // Od Czystego Zielonego do Zielonego-Mocno-Czerwonego
+            startColor = PURE_GREEN;
+            endColor = GREEN_STRONG_RED;
+            rangeMin = 0.0f;
+            rangeMax = THRESHOLD;
         } else {
-            // Od 0 (Zielony) do 1 (Czerwony)
-            float ratio = clamped;
-            return new Color(ratio, 1f - ratio, 0f, 1f);
-            // Lub: return new Color(Color.GREEN).lerp(Color.RED, ratio);
+            // --- STREFA 4: od 0.12 do 1.0 ---
+            // SKOK! Od Czerwonego-Mocno-Zielonego do Czystego Czerwonego
+            startColor = RED_STRONG_GREEN;
+            endColor = PURE_RED;
+            rangeMin = THRESHOLD;
+            rangeMax = 1.0f;
         }
+
+        // Normalizacja wartości w danym przedziale na zakres 0.0 - 1.0
+        float ratio = (val - rangeMin) / (rangeMax - rangeMin);
+
+        // Używamy metody set() i lerp() na obiekcie pomocniczym, żeby nie śmiecić w pamięci
+        return tempColor.set(startColor).lerp(endColor, ratio);
     }
 
     // Puste metody interfejsu InputProcessor
