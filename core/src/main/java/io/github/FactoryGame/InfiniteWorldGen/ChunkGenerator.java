@@ -8,8 +8,9 @@ public class ChunkGenerator {
     private FastNoiseLite edgeNoiseBig;
     private FastNoiseLite edgeNoiseSmall;
 
-    private float biomeSizeMod = 0.005f;
-    private float edgeNoiseStrength = 0.05f;
+    private static float biomeSizeMod = 0.005f;
+    private static float edgeNoiseStrength = 0.05f;
+    private static float biomeDivider = 0.12f;
 
     public ChunkGenerator(long seed) {
         // 1. TEMPERATURA
@@ -69,7 +70,6 @@ public class ChunkGenerator {
                 BiomeType biome;
 
                 // Decyzja T-temperatura H-wilgotność 2-wysoka 1-średnia 0-niska
-                float biomeDivider = 0.12f;
                 if (finalTemp > biomeDivider) {
                     if (finalHum > biomeDivider) biome = BiomeType.H2T2;
                     else if (finalHum > -biomeDivider) biome = BiomeType.H1T2;
@@ -155,6 +155,10 @@ public class ChunkGenerator {
 
     public float getHumidity(int x, int y) {
         return humidityNoise.GetNoise(x, y) + (edgeNoiseBig.GetNoise(x, y)*5/6 + edgeNoiseSmall.GetNoise(x, y)/6) * edgeNoiseStrength;
+    }
+
+    public static float getBiomeDivider() {
+        return biomeDivider;
     }
 
 }

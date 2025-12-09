@@ -300,7 +300,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
     private static final Color RED_STRONG_GREEN = new Color(0.9f, 0.8f, 0f, 1f);
     private static final Color PURE_RED = new Color(1f, 0f, 0f, 1f);
 
-    private static final float THRESHOLD = 0.12f;
+    private static float THRESHOLD = ChunkGenerator.getBiomeDivider();
 
     // Obiekt pomocniczy, żeby nie tworzyć nowych 'new Color()' w kółko
     private final Color tempColor = new Color();
