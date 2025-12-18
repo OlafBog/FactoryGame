@@ -7,6 +7,9 @@ public class ChunkGenerator {
     private FastNoiseLite resourceNoise;
     private FastNoiseLite edgeNoiseBig;
     private FastNoiseLite edgeNoiseSmall;
+    private FastNoiseLite decorationsRare;
+    private FastNoiseLite decorationsMedium;
+    private FastNoiseLite decorationsDense;
 
     private static float biomeSizeMod = 0.005f;
     private static float edgeNoiseStrength = 0.05f;
@@ -39,10 +42,23 @@ public class ChunkGenerator {
         edgeNoiseBig.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         edgeNoiseBig.SetFrequency(0.05f);
 
-        edgeNoiseSmall = new FastNoiseLite((int)seed + 4500);
+        edgeNoiseSmall = new FastNoiseLite((int)seed + 4100);
         edgeNoiseSmall.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         // Częstotliwość szumu krawędzi - więcej - bardziej poszarpane
         edgeNoiseSmall.SetFrequency(0.3f);
+
+        // 6. OZDOBY
+        decorationsRare = new FastNoiseLite((int)seed + 5000);
+        decorationsRare.SetNoiseType(FastNoiseLite.NoiseType.Cellular);
+        decorationsRare.SetFrequency(0.02f);
+
+        decorationsMedium = new FastNoiseLite((int)seed + 5100);
+        decorationsMedium.SetNoiseType(FastNoiseLite.NoiseType.Cellular);
+        decorationsMedium.SetFrequency(0.1f);
+
+        decorationsDense = new FastNoiseLite((int)seed + 5200);
+        decorationsDense.SetNoiseType(FastNoiseLite.NoiseType.Cellular);
+        decorationsDense.SetFrequency(0.4f);
     }
 
     public void fillChunk(Chunk chunk, int chunkX, int chunkY) {
@@ -137,7 +153,16 @@ public class ChunkGenerator {
                 int depth = minMapDepth + Math.round(((heightVal + 1) / 2f) * (maxMapDepth - minMapDepth));
                 chunk.setMaxDepth(x, y, depth);
 
-                // --- 3. SUROWCE ---
+                // --- 3. OZDOBY ---
+
+                Object temp = Object.NONE;
+                if(decorationsDense.GetNoise(globalX,globalY) < -0.99f) temp = Object.ROCK;
+                if(decorationsMedium.GetNoise(globalX,globalY)+edgeNoiseSmall.GetNoise(globalX,globalY)/50 < -0.99f) temp = Object.BUSH;
+                if(decorationsRare.GetNoise(globalX,globalY)+edgeNoiseSmall.GetNoise(globalX,globalY)/100 < -0.99f) temp = Object.TREE;
+
+                chunk.setObject(x, y, temp);
+
+                // --- 4. SUROWCE ---
                 /*
                 float resVal = resourceNoise.GetNoise(globalX, globalY);
                 if (resVal > 0.8f && depth > 5) {

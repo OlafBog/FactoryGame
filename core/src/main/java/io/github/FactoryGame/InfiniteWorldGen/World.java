@@ -9,7 +9,7 @@ public class World {
     private ChunkGenerator chunkGenerator;
 
     public World(long seed) {
-        this.chunkGenerator = new ChunkGenerator(seed);
+        this.chunkGenerator = new ChunkGenerator(seed%1000000000);
     }
 
     public LayerType getLayerAt(int worldX, int worldY) {
@@ -63,6 +63,13 @@ public class World {
         int localX = Math.floorMod(worldX, CHUNK_SIZE);
         int localY = Math.floorMod(worldY, CHUNK_SIZE);
         return chunk.getLayersLeft(localX, localY);
+    }
+
+    public Object getObjectAt(int worldX, int worldY) {
+        Chunk chunk = getOrGenerateChunk(worldX, worldY);
+        int localX = Math.floorMod(worldX, CHUNK_SIZE);
+        int localY = Math.floorMod(worldY, CHUNK_SIZE);
+        return chunk.getObject(localX, localY);
     }
 
     private long getChunkKey(int x, int y) {

@@ -8,6 +8,7 @@ public class Chunk {
     private byte[] currentDigDepth;
     private byte[] maxDepth;
     private byte[] biomeId;
+    private byte[] object;
     private byte[] hiddenResource;
     private byte[] resourceLayerTarget;
 
@@ -17,6 +18,7 @@ public class Chunk {
         this.currentDigDepth = new byte[AREA];
         this.maxDepth = new byte[AREA];
         this.biomeId = new byte[AREA];
+        this.object = new byte[AREA];
         this.hiddenResource = new byte[AREA];
         this.resourceLayerTarget = new byte[AREA];
     }
@@ -36,6 +38,11 @@ public class Chunk {
         if (idx != -1) biomeId[idx] = (byte) biome.ordinal();
     }
 
+    public void setObject(int x, int y, Object object) {
+        int idx = getIndex(x, y);
+        if (idx != -1) this.object[idx] = (byte) object.ordinal();
+    }
+
     /*
     public void setResource(int x, int y, ResourceType type, int depthIdx) {
         int idx = getIndex(x, y);
@@ -50,6 +57,12 @@ public class Chunk {
         int idx = getIndex(x, y);
         if (idx == -1) return BiomeType.H1T1;
         return BiomeType.values()[biomeId[idx]];
+    }
+
+    public Object getObject(int x, int y) {
+        int idx = getIndex(x, y);
+        if (idx == -1) return null;
+        return Object.values()[this.object[idx]];
     }
 
     public LayerType getVisibleLayer(int x, int y) {

@@ -31,6 +31,10 @@ public class Main extends ApplicationAdapter implements InputProcessor {
     private Texture texBedrock;
     private Texture texGold;
 
+    private Texture texObjectRock;
+    private Texture texObjectBush;
+    private Texture texObjectTree;
+
     private final int TILE_SIZE = 32;
     private final float CAMERA_SPEED = 600.0f;
     private java.util.Map<BiomeType, BiomePalette> biomeColors;
@@ -51,8 +55,9 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         camera = new OrthographicCamera();
         camera.setToOrtho(false, w, h);
 
-        gameWorld = new World(1234567890);
+        gameWorld = new World(1002003004);
         generateDebugTextures();
+        generateObjectTextures();
         whiteTexture = createSolidTexture(Color.WHITE);
 
         Gdx.input.setInputProcessor(this);
@@ -125,6 +130,24 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
                         // 3. Rysuj
                         batch.draw(tex, x * TILE_SIZE, y * TILE_SIZE);
+
+                        io.github.FactoryGame.InfiniteWorldGen.Object obj = gameWorld.getObjectAt(x, y);
+
+                        if (obj != null && layer != LayerType.AIR && layer != LayerType.BEDROCK) {
+                            if (layer == LayerType.LAYER1) {
+                                Texture objTex = null;
+                                switch (obj) {
+                                    case ROCK: objTex = texObjectRock; break;
+                                    case BUSH: objTex = texObjectBush; break;
+                                    case TREE: objTex = texObjectTree; break;
+                                    //default: objTex = null; break;
+                                }
+
+                                if (objTex != null) {
+                                    batch.draw(objTex, x * TILE_SIZE, y * TILE_SIZE);
+                                }
+                            }
+                        }
 
                         // 4. Reset koloru dla reszty elementów
                         batch.setColor(Color.WHITE);
@@ -287,6 +310,9 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         texGrass.dispose(); texDirt.dispose(); texDarkSoil.dispose();
         texStone.dispose(); texDeepStone.dispose(); texHardStone.dispose();
         texBedrock.dispose(); texGold.dispose();
+        if (texObjectRock != null) texObjectRock.dispose();
+        if (texObjectBush != null) texObjectBush.dispose();
+        if (texObjectTree != null) texObjectTree.dispose();
     }
 
     // Zdefiniuj kolory jako stałe poza funkcją dla optymalizacji
@@ -348,6 +374,46 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
         // Używamy metody set() i lerp() na obiekcie pomocniczym, żeby nie śmiecić w pamięci
         return tempColor.set(startColor).lerp(endColor, ratio);
+    }
+
+    private void generateObjectTextures() {
+        // 1. KAMIEŃ (Małe szare kółko)
+        Pixmap pRock = new Pixmap(TILE_SIZE, TILE_SIZE, Pixmap.Format.RGBA8888);
+        pRock.setColor(0, 0, 0, 0); // Przezroczyste tło
+        pRock.fill();
+        pRock.setColor(Color.GRAY);
+        // Rysuje koło w środku (x=16, y=16), promień 6
+        pRock.fillCircle(TILE_SIZE / 2, TILE_SIZE / 2, 6);
+        texObjectRock = new Texture(pRock);
+        pRock.dispose();
+
+        // 2. KRZAK (Większe zielone kółko)
+        Pixmap pBush = new Pixmap(TILE_SIZE, TILE_SIZE, Pixmap.Format.RGBA8888);
+        pBush.setColor(0, 0, 0, 0);
+        pBush.fill();
+        pBush.setColor(new Color(0.1f, 0.6f, 0.1f, 1f)); // Ciemna zieleń
+        // Promień 10
+        pBush.fillCircle(TILE_SIZE / 2, TILE_SIZE / 2, 10);
+        texObjectBush = new Texture(pBush);
+        pBush.dispose();
+
+        // 3. DRZEWO (Trójkąt)
+        // LibGDX Pixmap nie ma metody fillTriangle, więc zrobimy to ręcznie lub prostymi liniami
+        Pixmap pTree = new Pixmap(TILE_SIZE, TILE_SIZE, Pixmap.Format.RGBA8888);
+        pTree.setColor(0, 0, 0, 0);
+        pTree.fill();
+        pTree.setColor(new Color(0.0f, 0.4f, 0.0f, 1f)); // Bardzo ciemna zieleń
+
+        // Prosty algorytm rysowania trójkąta (choinka)
+        int center = TILE_SIZE / 2;
+        for (int y = 4; y < TILE_SIZE - 4; y++) {
+            // Im niżej (większe y), tym szerzej
+            int width = (y - 4) / 2;
+            pTree.fillRectangle(center - width, y, width * 2 + 1, 1);
+        }
+
+        texObjectTree = new Texture(pTree);
+        pTree.dispose();
     }
 
     // Puste metody interfejsu InputProcessor
