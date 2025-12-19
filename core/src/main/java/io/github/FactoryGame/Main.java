@@ -14,8 +14,16 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector3;
 import io.github.FactoryGame.InfiniteWorldGen.*;
 
+import com.mazatech.gdx.SVGAssetsConfigGDX;
+import com.mazatech.gdx.SVGAssetsGDX;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 public class Main extends ApplicationAdapter implements InputProcessor {
+
+    private SVGAssetsGDX svg;
 
     private SpriteBatch batch;
     private OrthographicCamera camera;
@@ -34,6 +42,10 @@ public class Main extends ApplicationAdapter implements InputProcessor {
     private Texture texObjectRock;
     private Texture texObjectBush;
     private Texture texObjectTree;
+
+    // mapy na tekstury, narazie 1 dla 9 tekstur 1szej warstwy, 2ga dla pozostałych warstw
+    private final java.util.EnumMap<BiomeType, Texture> layer1Textures = new java.util.EnumMap<>(BiomeType.class);
+    private final java.util.EnumMap<LayerType, Texture> lowerLayersTextures = new java.util.EnumMap<>(LayerType.class);
 
     private final int TILE_SIZE = 32;
     private final float CAMERA_SPEED = 600.0f;
@@ -55,7 +67,17 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         camera = new OrthographicCamera();
         camera.setToOrtho(false, w, h);
 
+        // do ładowania tekstur svg
+        SVGAssetsConfigGDX cfg = new SVGAssetsConfigGDX(
+            Gdx.graphics.getBackBufferWidth(),
+            Gdx.graphics.getBackBufferHeight(),
+            Gdx.graphics.getPpiX()
+        );
+        svg = new SVGAssetsGDX(cfg);
+
         gameWorld = new World(1002003004);
+        loadTextures();
+        //można zmienić nazwe?
         generateDebugTextures();
         generateObjectTextures();
         whiteTexture = createSolidTexture(Color.WHITE);
@@ -107,7 +129,9 @@ public class Main extends ApplicationAdapter implements InputProcessor {
                 else {
                     LayerType layer = gameWorld.getLayerAt(x, y);
                     BiomeType biome = gameWorld.getBiomeAt(x, y);
-                    Texture tex = getTextureForLayer(layer);
+                    //Texture tex = getTextureForLayer(layer);
+                    //teraz textura jest wybierana na podstawie warstwy i biomu
+                    Texture tex = getTextureForLayerAndBiome(layer, biome);
 
                     // Wewnątrz pętli for (x, y)...
                     if (tex != null) {
@@ -119,9 +143,12 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
                         // 2. Ustaw kolor w zależności od warstwy
                         // (Zakładam, że LAYER1 to Trawa/Powierzchnia, a LAYER2 to Ziemia)
-                        if (layer == LayerType.LAYER1) {
-                            batch.setColor(palette.surface);
-                        } else if (layer == LayerType.LAYER2) {
+//                        if (layer == LayerType.LAYER1) {
+//                            batch.setColor(palette.surface);
+//                        } else
+                        // ^^ narazie tylko zakomentowałem kolorowanie, można potem usunąć
+
+                        if (layer == LayerType.LAYER2) {
                             batch.setColor(palette.subsoil);
                         } else {
                             // Dla kamienia, bedrocka itp. resetujemy na biały
@@ -174,6 +201,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         batch.end();
     }
 
+    // w nowej wersji nieużywane
     private Texture getTextureForLayer(LayerType layer) {
         if (layer == null) return null;
         switch (layer) {
@@ -188,6 +216,19 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         }
     }
 
+    // nowy odpowiednik powyższej funkcji
+    private Texture getTextureForLayerAndBiome (LayerType layer, BiomeType biomeType){
+        if (layer == null) return null;
+
+        if (layer == LayerType.LAYER1) {
+            Texture t = layer1Textures.get(biomeType);
+            return (t != null) ? t : lowerLayersTextures.get(LayerType.LAYER1);
+        }
+        return lowerLayersTextures.get(layer);
+
+    }
+
+    // to chyba będzie do usuniećia jak zrobimy svg dla pozostałych warstw
     private void initBiomeColors() {
         biomeColors = new java.util.EnumMap<>(BiomeType.class);
 
@@ -243,9 +284,10 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         ));
     }
 
+    // póki co dolne warstwy generowane jak wcześniej
     private void generateDebugTextures() {
         // Generujemy proste tekstury (kwadraty)
-        texGrass = createSolidTexture(new Color(0.8f, 0.8f, 0.8f, 1)); // Bazowo szary/biały, żeby dobrze przyjmował kolory
+        //texGrass = createSolidTexture(new Color(0.8f, 0.8f, 0.8f, 1)); // Bazowo szary/biały, żeby dobrze przyjmował kolory
         texDirt = createSolidTexture(new Color(0.5f, 0.3f, 0.1f, 1));  // Brąz
         texDarkSoil = createSolidTexture(new Color(0.3f, 0.2f, 0.05f, 1));
         texStone = createSolidTexture(new Color(0.6f, 0.6f, 0.6f, 1)); // Szary
@@ -253,6 +295,32 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         texHardStone = createSolidTexture(new Color(0.25f, 0.25f, 0.3f, 1));
         texBedrock = createSolidTexture(new Color(0.1f, 0.1f, 0.1f, 1));
         texGold = createSolidTexture(new Color(1f, 0.9f, 0.1f, 1), 16, 16);
+
+        // dodajemy narazie wciąż generowane powyżej, tekstury do lowerLayersTextures
+        lowerLayersTextures.put(LayerType.LAYER2, texDirt);
+        lowerLayersTextures.put(LayerType.LAYER3, texDarkSoil);
+        lowerLayersTextures.put(LayerType.LAYER4, texStone);
+        lowerLayersTextures.put(LayerType.LAYER5, texDeepStone);
+        lowerLayersTextures.put(LayerType.LAYER6, texHardStone);
+        lowerLayersTextures.put(LayerType.BEDROCK, texBedrock);
+    }
+
+    // ładowanie textur svg do mapy na podstawie biomów
+    private void loadTextures(){
+        layer1Textures.put(BiomeType.H0T0, svg.createTexture("bases/h0/h0t0.svg", TILE_SIZE, TILE_SIZE));
+        layer1Textures.put(BiomeType.H0T1, svg.createTexture("bases/h0/h0t1.svg", TILE_SIZE, TILE_SIZE));
+        layer1Textures.put(BiomeType.H0T2, svg.createTexture("bases/h0/h0t2.svg", TILE_SIZE, TILE_SIZE));
+
+        layer1Textures.put(BiomeType.H1T0, svg.createTexture("bases/h1/h1t0.svg", TILE_SIZE, TILE_SIZE));
+        layer1Textures.put(BiomeType.H1T1, svg.createTexture("bases/h1/h1t1.svg", TILE_SIZE, TILE_SIZE));
+        layer1Textures.put(BiomeType.H1T2, svg.createTexture("bases/h1/h1t2.svg", TILE_SIZE, TILE_SIZE));
+
+        layer1Textures.put(BiomeType.H2T0, svg.createTexture("bases/h2/h2t0.svg", TILE_SIZE, TILE_SIZE));
+        layer1Textures.put(BiomeType.H2T1, svg.createTexture("bases/h2/h2t1.svg", TILE_SIZE, TILE_SIZE));
+        layer1Textures.put(BiomeType.H2T2, svg.createTexture("bases/h2/h2t2.svg", TILE_SIZE, TILE_SIZE));
+
+
+        lowerLayersTextures.put(LayerType.LAYER1, layer1Textures.get(BiomeType.H1T1));
     }
 
     private void handleInput(float dt) {
@@ -303,16 +371,31 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
     private Texture createSolidTexture(Color color) { return createSolidTexture(color, TILE_SIZE, TILE_SIZE); }
 
+    // uporządkowany i troche zmodyfikowany dispose
     @Override
     public void dispose() {
         batch.dispose();
         if (font != null) font.dispose();
-        texGrass.dispose(); texDirt.dispose(); texDarkSoil.dispose();
-        texStone.dispose(); texDeepStone.dispose(); texHardStone.dispose();
-        texBedrock.dispose(); texGold.dispose();
-        if (texObjectRock != null) texObjectRock.dispose();
-        if (texObjectBush != null) texObjectBush.dispose();
-        if (texObjectTree != null) texObjectTree.dispose();
+        if (svg != null) svg.dispose();
+
+        Set<Texture> textures = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        // dodawanie textur z layers
+        if (lowerLayersTextures != null) textures.addAll(lowerLayersTextures.values());
+        if (layer1Textures != null) textures.addAll(layer1Textures.values());
+
+        // pozostałe textury
+        textures.add(texGold);
+        textures.add(whiteTexture);
+        textures.add(texObjectRock);
+        textures.add(texObjectBush);
+        textures.add(texObjectTree);
+
+        // usuwanie wszystkich
+        for (Texture t : textures) {
+            if (t != null) t.dispose();
+        }
+
     }
 
     // Zdefiniuj kolory jako stałe poza funkcją dla optymalizacji

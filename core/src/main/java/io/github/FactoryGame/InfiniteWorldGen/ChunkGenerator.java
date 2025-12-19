@@ -11,9 +11,9 @@ public class ChunkGenerator {
     private FastNoiseLite decorationsMedium;
     private FastNoiseLite decorationsDense;
 
-    private static float biomeSizeMod = 0.005f;
-    private static float edgeNoiseStrength = 0.05f;
-    private static float biomeDivider = 0.12f;
+    private static float biomeSizeMod = 0.005f; //rozmiary biomowo
+    private static float edgeNoiseStrength = 0.05f; //rodzielenie granic
+    private static float biomeDivider = 0.12f; //roznorodnosc biomow
 
     public ChunkGenerator(long seed) {
         // 1. TEMPERATURA
