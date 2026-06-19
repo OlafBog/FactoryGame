@@ -83,4 +83,33 @@ public class World {
     public float getHumidityAt(int worldX, int worldY) {
         return chunkGenerator.getHumidity(worldX, worldY);
     }
+
+    // Tile Variation Getters
+    public int getBaseVariation(int worldX, int worldY) {
+        Chunk chunk = getOrGenerateChunk(worldX, worldY);
+        int localX = Math.floorMod(worldX, CHUNK_SIZE);
+        int localY = Math.floorMod(worldY, CHUNK_SIZE);
+        return chunk.getBaseVariation(localX, localY);
+    }
+
+    public int getDecorVariation(int worldX, int worldY) {
+        Chunk chunk = getOrGenerateChunk(worldX, worldY);
+        int localX = Math.floorMod(worldX, CHUNK_SIZE);
+        int localY = Math.floorMod(worldY, CHUNK_SIZE);
+        return chunk.getDecorVariation(localX, localY);
+    }
+
+    public int getObjectVariation(int worldX, int worldY) {
+        Chunk chunk = getOrGenerateChunk(worldX, worldY);
+        int localX = Math.floorMod(worldX, CHUNK_SIZE);
+        int localY = Math.floorMod(worldY, CHUNK_SIZE);
+        return chunk.getObjectVariation(localX, localY);
+    }
+
+    public TerrainPatternType getPatternType(int worldX, int worldY) {
+        Chunk chunk = getOrGenerateChunk(worldX, worldY);
+        int localX = Math.floorMod(worldX, CHUNK_SIZE);
+        int localY = Math.floorMod(worldY, CHUNK_SIZE);
+        return chunk.getPatternType(localX, localY);
+    }
 }

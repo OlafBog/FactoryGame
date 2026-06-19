@@ -10,6 +10,7 @@ public class ChunkGenerator {
     private FastNoiseLite decorationsRare;
     private FastNoiseLite decorationsMedium;
     private FastNoiseLite decorationsDense;
+    private TileVariationSystem tileVariations;
 
     private static float biomeSizeMod = 0.005f; //rozmiary biomowo
     private static float edgeNoiseStrength = 0.05f; //rodzielenie granic
@@ -59,6 +60,9 @@ public class ChunkGenerator {
         decorationsDense = new FastNoiseLite((int)seed + 5200);
         decorationsDense.SetNoiseType(FastNoiseLite.NoiseType.Cellular);
         decorationsDense.SetFrequency(0.4f);
+
+        // 7. SYSTEM WARIACJI TILE'ÓW
+        this.tileVariations = new TileVariationSystem(seed);
     }
 
     public void fillChunk(Chunk chunk, int chunkX, int chunkY) {
@@ -107,48 +111,6 @@ public class ChunkGenerator {
 
                 int minMapDepth = 15;
                 int maxMapDepth = 30;
-/*
-                switch (biome) {
-                    case H2T2:
-                        minMapDepth = 20;
-                        maxMapDepth = 50;
-                        break;
-                    case H2T1:
-                        minMapDepth = 12;
-                        maxMapDepth = 25;
-                        break;
-                    case H2T0:
-                        minMapDepth = 10;
-                        maxMapDepth = 20;
-                        break;
-                    case H1T2:
-                        minMapDepth = 10;
-                        maxMapDepth = 20;
-                        break;
-                    case H1T1:
-                        minMapDepth = 10;
-                        maxMapDepth = 20;
-                        break;
-                    case H1T0:
-                        minMapDepth = 10;
-                        maxMapDepth = 20;
-                        break;
-                    case H0T2:
-                        minMapDepth = 10;
-                        maxMapDepth = 20;
-                        break;
-                    case H0T1:
-                        minMapDepth = 10;
-                        maxMapDepth = 20;
-                        break;
-                    case H0T0:
-                        minMapDepth = 10;
-                        maxMapDepth = 20;
-                        break;
-                    default:
-                        break;
-                }
-                */
 
                 int depth = minMapDepth + Math.round(((heightVal + 1) / 2f) * (maxMapDepth - minMapDepth));
                 chunk.setMaxDepth(x, y, depth);
@@ -156,20 +118,35 @@ public class ChunkGenerator {
                 // --- 3. OZDOBY ---
 
                 Object temp = Object.NONE;
-                if(decorationsDense.GetNoise(globalX,globalY) < -0.99f) temp = Object.ROCK;
+                if(decorationsDense.GetNoise(globalX,globalY) < -0.99f) temp = Object.BOULDER;
                 if(decorationsMedium.GetNoise(globalX,globalY)+edgeNoiseSmall.GetNoise(globalX,globalY)/50 < -0.99f) temp = Object.BUSH;
                 if(decorationsRare.GetNoise(globalX,globalY)+edgeNoiseSmall.GetNoise(globalX,globalY)/100 < -0.99f) temp = Object.TREE;
 
                 chunk.setObject(x, y, temp);
 
-                // --- 4. SUROWCE ---
-                /*
-                float resVal = resourceNoise.GetNoise(globalX, globalY);
-                if (resVal > 0.8f && depth > 5) {
-                    int resDepth = MathUtils.random(3, depth - 2);
-                    chunk.setResource(x, y, ResourceType.GOLD, resDepth);
+                // --- 4. SUROWCE (pod ziemią) ---
+                float resNoise = resourceNoise.GetNoise(globalX, globalY * 7 + 300);
+                if (resNoise > 0.3f) {
+                    // Determine which resource based on noise value
+                    ResourceType resType;
+                    float resVal = resourceNoise.GetNoise(globalX * 13 + 100, globalY * 11 + 200);
+                    if (resVal < -0.6f) resType = ResourceType.COAL;
+                    else if (resVal < -0.2f) resType = ResourceType.IRON;
+                    else if (resVal < 0.2f) resType = ResourceType.COPPER;
+                    else if (resVal < 0.5f) resType = ResourceType.GOLD;
+                    else if (resVal < 0.7f) resType = ResourceType.QUARTZ;
+                    else resType = ResourceType.LIMESTONE;
+
+                    // Place at a random depth between 3 and maxDepth-2
+                    int resDepth = 3 + Math.floorMod((int)(resNoise * 1000), Math.max(1, depth - 5));
+                    chunk.setResource(x, y, resType, resDepth);
                 }
-                 */
+
+                // --- 5. WARIACJE TILE'ÓW ---
+                chunk.setBaseVariation(x, y, tileVariations.getBaseVariation(globalX, globalY));
+                chunk.setDecorVariation(x, y, tileVariations.getDecorVariation(globalX, globalY));
+                chunk.setObjectVariation(x, y, tileVariations.getObjectVariation(globalX, globalY));
+                chunk.setPatternType(x, y, tileVariations.getTerrainPattern(globalX, globalY));
             }
         }
     }

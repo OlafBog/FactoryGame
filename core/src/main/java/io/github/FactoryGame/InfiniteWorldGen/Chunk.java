@@ -12,6 +12,11 @@ public class Chunk {
     private byte[] hiddenResource;
     private byte[] resourceLayerTarget;
 
+    private byte[] baseVariation;    // Which base tile (1-4)
+    private byte[] decorVariation;   // Which decor overlay (0-8)
+    private byte[] objectVariation;  // Which object variant (0-4)
+    private byte[] patternType;      // Terrain pattern (0=smooth, 1=medium, 2=rough, 3=sharp)
+
     public Chunk(int x, int y) {
         this.chunkX = x;
         this.chunkY = y;
@@ -21,11 +26,35 @@ public class Chunk {
         this.object = new byte[AREA];
         this.hiddenResource = new byte[AREA];
         this.resourceLayerTarget = new byte[AREA];
+        this.baseVariation = new byte[AREA];
+        this.decorVariation = new byte[AREA];
+        this.objectVariation = new byte[AREA];
+        this.patternType = new byte[AREA];
     }
 
     private int getIndex(int x, int y) {
         if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return -1;
         return y * SIZE + x;
+    }
+
+    public void setBaseVariation(int x, int y, int variation) {
+        int idx = getIndex(x, y);
+        if (idx != -1) baseVariation[idx] = (byte) variation;
+    }
+
+    public void setDecorVariation(int x, int y, int variation) {
+        int idx = getIndex(x, y);
+        if (idx != -1) decorVariation[idx] = (byte) variation;
+    }
+
+    public void setObjectVariation(int x, int y, int variation) {
+        int idx = getIndex(x, y);
+        if (idx != -1) objectVariation[idx] = (byte) variation;
+    }
+
+    public void setPatternType(int x, int y, TerrainPatternType pattern) {
+        int idx = getIndex(x, y);
+        if (idx != -1) patternType[idx] = (byte) pattern.ordinal();
     }
 
     public void setMaxDepth(int x, int y, int depth) {
@@ -43,15 +72,39 @@ public class Chunk {
         if (idx != -1) this.object[idx] = (byte) object.ordinal();
     }
 
-    /*
+    
+
     public void setResource(int x, int y, ResourceType type, int depthIdx) {
         int idx = getIndex(x, y);
         if (idx != -1) {
-            hiddenResource[idx] = (byte) type.ordinal();
+            hiddenResource[idx] = (byte) (type.ordinal() + 1); // +1 so 0 means "no resource"
             resourceLayerTarget[idx] = (byte) depthIdx;
         }
     }
-     */
+
+    public int getBaseVariation(int x, int y) {
+        int idx = getIndex(x, y);
+        if (idx == -1) return 0;
+        return baseVariation[idx];
+    }
+
+    public int getDecorVariation(int x, int y) {
+        int idx = getIndex(x, y);
+        if (idx == -1) return 0;
+        return decorVariation[idx];
+    }
+
+    public int getObjectVariation(int x, int y) {
+        int idx = getIndex(x, y);
+        if (idx == -1) return 0;
+        return objectVariation[idx];
+    }
+
+    public TerrainPatternType getPatternType(int x, int y) {
+        int idx = getIndex(x, y);
+        if (idx == -1) return TerrainPatternType.SMOOTH;
+        return TerrainPatternType.values()[patternType[idx]];
+    }
 
     public BiomeType getBiome(int x, int y) {
         int idx = getIndex(x, y);
@@ -106,9 +159,11 @@ public class Chunk {
     public ResourceType getVisibleResource(int x, int y) {
         int idx = getIndex(x, y);
         if (idx == -1) return null;
-        if (hiddenResource[idx] == 0) return null;
-        if (currentDigDepth[idx] >= resourceLayerTarget[idx]) {
-            return ResourceType.values()[hiddenResource[idx]];
+        byte res = hiddenResource[idx];
+        byte target = resourceLayerTarget[idx];
+        if (res == 0 || target == 0) return null;
+        if (currentDigDepth[idx] >= target) {
+            return ResourceType.values()[res - 1]; // -1 because we stored ordinal+1
         }
         return null;
     }

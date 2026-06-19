@@ -7,80 +7,103 @@ import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector3;
 import io.github.FactoryGame.InfiniteWorldGen.*;
+import io.github.FactoryGame.InfiniteWorldGen.Rendering.BiomeTextureCache;
 
 import com.mazatech.gdx.SVGAssetsConfigGDX;
 import com.mazatech.gdx.SVGAssetsGDX;
 
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
 
 public class Main extends ApplicationAdapter implements InputProcessor {
 
     private SVGAssetsGDX svg;
-
     private SpriteBatch batch;
     private OrthographicCamera camera;
     private World gameWorld;
     private BitmapFont font;
-
-    private Texture texGrass;
-    private Texture texDirt;
-    private Texture texDarkSoil;
-    private Texture texStone;
-    private Texture texDeepStone;
-    private Texture texHardStone;
-    private Texture texBedrock;
-    private Texture texGold;
-
-    private Texture texObjectRock;
-    private Texture texObjectBush;
-    private Texture texObjectTree;
-
-    // mapy na tekstury, narazie 1 dla 9 tekstur 1szej warstwy, 2ga dla pozostałych warstw
-    private final java.util.EnumMap<BiomeType, Texture> layer1Textures = new java.util.EnumMap<>(BiomeType.class);
-    private final java.util.EnumMap<LayerType, Texture> lowerLayersTextures = new java.util.EnumMap<>(LayerType.class);
+    private Texture whiteTexture;
 
     private final int TILE_SIZE = 32;
     private final float CAMERA_SPEED = 600.0f;
-    private java.util.Map<BiomeType, BiomePalette> biomeColors;
     private boolean debugTemperature = false;
     private boolean debugHumidity = false;
     private boolean drawNumbers = false;
-    private Texture whiteTexture;
+
+    // Managers
+    private BiomeTextureCache textureCache;
+    private TextureManager textureManager;
+    private HeatmapColorizer heatmapColorizer;
+    private RenderSystem renderSystem;
+    private java.util.EnumMap<BiomeType, BiomePalette> biomeColors;
+
+    // New game features
+    private Player player;
+    private HUD hud;
+    private ToolType currentTool = ToolType.HAND;
+    private boolean hudInitialized = false;
+    private DigEffect digEffect;
 
     @Override
     public void create() {
         batch = new SpriteBatch();
+        batch.setBlendFunction(com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA, com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+
         font = new BitmapFont();
         font.setColor(Color.WHITE);
-        initBiomeColors();
+
+        // Initialize biome colors for underground layers
+        biomeColors = new java.util.EnumMap<>(BiomeType.class);
+        biomeColors.put(BiomeType.H0T0, new BiomePalette(new Color(0.9f, 0.9f, 1.0f, 1f), new Color(0.7f, 0.7f, 0.75f, 1f)));
+        biomeColors.put(BiomeType.H1T0, new BiomePalette(new Color(1.0f, 1.0f, 1.0f, 1f), new Color(0.5f, 0.4f, 0.35f, 1f)));
+        biomeColors.put(BiomeType.H2T0, new BiomePalette(new Color(0.7f, 0.8f, 0.9f, 1f), new Color(0.4f, 0.4f, 0.5f, 1f)));
+        biomeColors.put(BiomeType.H0T1, new BiomePalette(new Color(0.7f, 0.8f, 0.4f, 1f), new Color(0.6f, 0.5f, 0.3f, 1f)));
+        biomeColors.put(BiomeType.H1T1, new BiomePalette(new Color(0.4f, 0.8f, 0.4f, 1f), new Color(0.5f, 0.3f, 0.1f, 1f)));
+        biomeColors.put(BiomeType.H2T1, new BiomePalette(new Color(0.2f, 0.5f, 0.2f, 1f), new Color(0.3f, 0.25f, 0.2f, 1f)));
+        biomeColors.put(BiomeType.H0T2, new BiomePalette(new Color(1.0f, 0.9f, 0.5f, 1f), new Color(0.9f, 0.7f, 0.4f, 1f)));
+        biomeColors.put(BiomeType.H1T2, new BiomePalette(new Color(0.6f, 0.7f, 0.2f, 1f), new Color(0.7f, 0.5f, 0.3f, 1f)));
+        biomeColors.put(BiomeType.H2T2, new BiomePalette(new Color(0.1f, 0.8f, 0.3f, 1f), new Color(0.4f, 0.2f, 0.1f, 1f)));
 
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
         camera = new OrthographicCamera();
         camera.setToOrtho(false, w, h);
+        camera.update();
 
-        // do ładowania tekstur svg
         SVGAssetsConfigGDX cfg = new SVGAssetsConfigGDX(
-            Gdx.graphics.getBackBufferWidth(),
-            Gdx.graphics.getBackBufferHeight(),
+            Gdx.graphics.getBackBufferWidth() * 4,
+            Gdx.graphics.getBackBufferHeight() * 4,
             Gdx.graphics.getPpiX()
         );
         svg = new SVGAssetsGDX(cfg);
 
+        // Initialize managers
+        textureManager = new TextureManager(svg, TILE_SIZE);
+        textureManager.loadAll();
+
+        textureCache = new BiomeTextureCache(svg, TILE_SIZE);
+        heatmapColorizer = new HeatmapColorizer();
+        renderSystem = new RenderSystem(batch, textureCache, textureManager, biomeColors, font, TILE_SIZE);
+
         gameWorld = new World(1002003004);
-        loadTextures();
-        //można zmienić nazwe?
-        generateDebugTextures();
-        generateObjectTextures();
-        whiteTexture = createSolidTexture(Color.WHITE);
+
+        // Create white texture for heatmap
+        com.badlogic.gdx.graphics.Pixmap pixmap = new com.badlogic.gdx.graphics.Pixmap(TILE_SIZE, TILE_SIZE, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(Color.WHITE);
+        pixmap.fill();
+        whiteTexture = new Texture(pixmap);
+        whiteTexture.setFilter(com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest, com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest);
+        pixmap.dispose();
+
+        // Initialize player, effects and HUD
+        player = new Player(TILE_SIZE);
+        player.x = camera.position.x;
+        player.y = camera.position.y;
+
+        digEffect = new DigEffect();
 
         Gdx.input.setInputProcessor(this);
     }
@@ -88,16 +111,18 @@ public class Main extends ApplicationAdapter implements InputProcessor {
     @Override
     public void render() {
         handleInput(Gdx.graphics.getDeltaTime());
+
+        // Camera follows player smoothly
+        camera.position.x += (player.x - camera.position.x) * 0.08f;
+        camera.position.y += (player.y - camera.position.y) * 0.08f;
         camera.update();
 
-        // Tło
         Gdx.gl.glClearColor(0.1f, 0.1f, 0.1f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
-        // Obliczanie widocznego obszaru
         int startX = (int) Math.floor((camera.position.x - camera.viewportWidth / 2 * camera.zoom) / TILE_SIZE) - 1;
         int endX   = (int) Math.floor((camera.position.x + camera.viewportWidth / 2 * camera.zoom) / TILE_SIZE) + 1;
         int startY = (int) Math.floor((camera.position.y - camera.viewportHeight / 2 * camera.zoom) / TILE_SIZE) - 1;
@@ -105,236 +130,83 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
         for (int x = startX; x <= endX; x++) {
             for (int y = startY; y <= endY; y++) {
-                float drawX = x * TILE_SIZE;
-                float drawY = y * TILE_SIZE;
+                LayerType layer = gameWorld.getLayerAt(x, y);
+                BiomeType biome = gameWorld.getBiomeAt(x, y);
 
-                // --- SEKCJA DEBUGOWANIA ---
-                if (debugTemperature || debugHumidity) {
-                    float noiseValue;
-
-                    if (debugTemperature) {
-                        noiseValue = gameWorld.getTemperatureAt(x, y);
-                    } else {
-                        noiseValue = gameWorld.getHumidityAt(x, y);
-                    }
-
-                    // Oblicz kolor: Niebieski (-1) -> Zielony (0) -> Czerwony (1)
-                    Color debugColor = getHeatmapColor(noiseValue);
-
-                    batch.setColor(debugColor);
-                    batch.draw(whiteTexture, drawX, drawY, TILE_SIZE, TILE_SIZE);
-                    batch.setColor(Color.WHITE); // Reset koloru
-                }
-                // --- NORMALNE RYSOWANIE GRY ---
-                else {
-                    LayerType layer = gameWorld.getLayerAt(x, y);
-                    BiomeType biome = gameWorld.getBiomeAt(x, y);
-                    //Texture tex = getTextureForLayer(layer);
-                    //teraz textura jest wybierana na podstawie warstwy i biomu
-                    Texture tex = getTextureForLayerAndBiome(layer, biome);
-
-                    // Wewnątrz pętli for (x, y)...
-                    if (tex != null) {
-                        // 1. Pobierz paletę dla aktualnego biomu
-                        BiomePalette palette = biomeColors.get(biome);
-
-                        // Zabezpieczenie na wypadek błędu (gdyby mapa nie miała biomu)
-                        if (palette == null) palette = biomeColors.get(BiomeType.H1T1);
-
-                        // 2. Ustaw kolor w zależności od warstwy
-                        // (Zakładam, że LAYER1 to Trawa/Powierzchnia, a LAYER2 to Ziemia)
-//                        if (layer == LayerType.LAYER1) {
-//                            batch.setColor(palette.surface);
-//                        } else
-                        // ^^ narazie tylko zakomentowałem kolorowanie, można potem usunąć
-
-                        if (layer == LayerType.LAYER2) {
-                            batch.setColor(palette.subsoil);
-                        } else {
-                            // Dla kamienia, bedrocka itp. resetujemy na biały
-                            batch.setColor(Color.WHITE);
-                        }
-
-                        // 3. Rysuj
-                        batch.draw(tex, x * TILE_SIZE, y * TILE_SIZE);
-
-                        io.github.FactoryGame.InfiniteWorldGen.Object obj = gameWorld.getObjectAt(x, y);
-
-                        if (obj != null && layer != LayerType.AIR && layer != LayerType.BEDROCK) {
-                            if (layer == LayerType.LAYER1) {
-                                Texture objTex = null;
-                                switch (obj) {
-                                    case ROCK: objTex = texObjectRock; break;
-                                    case BUSH: objTex = texObjectBush; break;
-                                    case TREE: objTex = texObjectTree; break;
-                                    //default: objTex = null; break;
-                                }
-
-                                if (objTex != null) {
-                                    batch.draw(objTex, x * TILE_SIZE, y * TILE_SIZE);
-                                }
-                            }
-                        }
-
-                        // 4. Reset koloru dla reszty elementów
-                        batch.setColor(Color.WHITE);
-                    }
-
-                    // Surowce
-                    ResourceType res = gameWorld.getResourceAt(x, y);
-                    if (res == ResourceType.GOLD) {
-                        batch.draw(texGold, x * TILE_SIZE + 8, y * TILE_SIZE + 8);
-                    }
-
-                    // Napisy (głębokość)
-                    if (layer != LayerType.BEDROCK && layer != LayerType.AIR) {
-                        int layersLeft = gameWorld.getLayersLeftAt(x, y);
-                        if (layersLeft <= 3) font.setColor(Color.RED);
-                        else font.setColor(Color.WHITE);
-                        // Odkomentuj, jeśli chcesz widzieć numerki
-                        if (drawNumbers)
-                            font.draw(batch, String.valueOf(layersLeft), x * TILE_SIZE + 10, y * TILE_SIZE + 22);
-                    }
-                }
+                renderSystem.renderTile(x, y, layer, biome, gameWorld, drawNumbers,
+                                       whiteTexture, heatmapColorizer, debugTemperature, debugHumidity);
             }
         }
+
+        // Render player character
+        player.render(batch);
+
+        // Render dig effects
+        if (digEffect != null) digEffect.render(batch, TILE_SIZE);
+
         batch.end();
-    }
 
-    // w nowej wersji nieużywane
-    private Texture getTextureForLayer(LayerType layer) {
-        if (layer == null) return null;
-        switch (layer) {
-            case LAYER1: return texGrass;
-            case LAYER2: return texDirt;
-            case LAYER3: return texDarkSoil;
-            case LAYER4: return texStone;
-            case LAYER5: return texDeepStone;
-            case LAYER6: return texHardStone;
-            case BEDROCK: return texBedrock;
-            default: return null;
+        // Render HUD overlay (uses its own projection matrix)
+        if (!hudInitialized) {
+            hud = new HUD(textureManager.resourceIcons, textureManager.toolIcons);
+            hudInitialized = true;
         }
-    }
 
-    // nowy odpowiednik powyższej funkcji
-    private Texture getTextureForLayerAndBiome (LayerType layer, BiomeType biomeType){
-        if (layer == null) return null;
+        // Get biome under player for HUD
+        int playerTileX = Math.round(player.x / TILE_SIZE);
+        int playerTileY = Math.round(player.y / TILE_SIZE);
+        BiomeType playerBiome = gameWorld.getBiomeAt(playerTileX, playerTileY);
+        int layersRemaining = gameWorld.getLayersLeftAt(playerTileX, playerTileY);
 
-        if (layer == LayerType.LAYER1) {
-            Texture t = layer1Textures.get(biomeType);
-            return (t != null) ? t : lowerLayersTextures.get(LayerType.LAYER1);
-        }
-        return lowerLayersTextures.get(layer);
+        // Set up screen-space projection for HUD
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        batch.begin();
 
-    }
+        hud.render(batch, playerBiome, playerTileX, playerTileY, layersRemaining, currentTool, player);
 
-    // to chyba będzie do usuniećia jak zrobimy svg dla pozostałych warstw
-    private void initBiomeColors() {
-        biomeColors = new java.util.EnumMap<>(BiomeType.class);
+        batch.end();
 
-        // --- ZIMNE (T0) ---
-        // H0T0: Zimno i Sucho (Lodowa pustynia/Tundra) -> Biały / Szary
-        biomeColors.put(BiomeType.H0T0, new BiomePalette(
-            new Color(0.9f, 0.9f, 1.0f, 1f), // Lekko niebieskawy śnieg
-            new Color(0.7f, 0.7f, 0.75f, 1f) // Zmarznięta ziemia
-        ));
-        // H1T0: Zimno i Średnio (Śnieżna tajga) -> Biały / Brązowy
-        biomeColors.put(BiomeType.H1T0, new BiomePalette(
-            new Color(1.0f, 1.0f, 1.0f, 1f), // Czysty śnieg
-            new Color(0.5f, 0.4f, 0.35f, 1f) // Ziemia
-        ));
-        // H2T0: Zimno i Mokro (Zmarznięte bagno) -> Szaro-niebieski
-        biomeColors.put(BiomeType.H2T0, new BiomePalette(
-            new Color(0.7f, 0.8f, 0.9f, 1f), // Lodowaty błękit
-            new Color(0.4f, 0.4f, 0.5f, 1f)  // Ciemny kamień/muł
-        ));
-
-        // --- UMIARKOWANE (T1) ---
-        // H0T1: Umiarkowanie i Sucho (Step/Wypalona trawa) -> Żółto-zielony
-        biomeColors.put(BiomeType.H0T1, new BiomePalette(
-            new Color(0.7f, 0.8f, 0.4f, 1f), // Sucha trawa
-            new Color(0.6f, 0.5f, 0.3f, 1f)  // Sucha ziemia
-        ));
-        // H1T1: Umiarkowanie (Las/Równiny - STANDARD) -> Zielony
-        biomeColors.put(BiomeType.H1T1, new BiomePalette(
-            new Color(0.4f, 0.8f, 0.4f, 1f), // Ładna zieleń (DOMYŚLNY)
-            new Color(0.5f, 0.3f, 0.1f, 1f)  // Zwykła brązowa ziemia
-        ));
-        // H2T1: Umiarkowanie i Mokro (Las deszczowy/Bagno) -> Ciemna zieleń
-        biomeColors.put(BiomeType.H2T1, new BiomePalette(
-            new Color(0.2f, 0.5f, 0.2f, 1f), // Ciemna, soczysta zieleń
-            new Color(0.3f, 0.25f, 0.2f, 1f) // Błotnista ziemia
-        ));
-
-        // --- GORĄCE (T2) ---
-        // H0T2: Gorąco i Sucho (Pustynia) -> Piaskowy
-        biomeColors.put(BiomeType.H0T2, new BiomePalette(
-            new Color(1.0f, 0.9f, 0.5f, 1f), // Piasek
-            new Color(0.9f, 0.7f, 0.4f, 1f)  // Piaskowiec
-        ));
-        // H1T2: Gorąco i Średnio (Sawanna) -> Wypłowiała zieleń/Oliwkowy
-        biomeColors.put(BiomeType.H1T2, new BiomePalette(
-            new Color(0.6f, 0.7f, 0.2f, 1f), // Oliwkowa trawa
-            new Color(0.7f, 0.5f, 0.3f, 1f)  // Czerwonawa ziemia
-        ));
-        // H2T2: Gorąco i Mokro (Dżungla tropikalna) -> Jaskrawa/Neonowa zieleń
-        biomeColors.put(BiomeType.H2T2, new BiomePalette(
-            new Color(0.1f, 0.8f, 0.3f, 1f), // Jaskrawa dżungla
-            new Color(0.4f, 0.2f, 0.1f, 1f)  // Wilgotna gleba
-        ));
-    }
-
-    // póki co dolne warstwy generowane jak wcześniej
-    private void generateDebugTextures() {
-        // Generujemy proste tekstury (kwadraty)
-        //texGrass = createSolidTexture(new Color(0.8f, 0.8f, 0.8f, 1)); // Bazowo szary/biały, żeby dobrze przyjmował kolory
-        texDirt = createSolidTexture(new Color(0.5f, 0.3f, 0.1f, 1));  // Brąz
-        texDarkSoil = createSolidTexture(new Color(0.3f, 0.2f, 0.05f, 1));
-        texStone = createSolidTexture(new Color(0.6f, 0.6f, 0.6f, 1)); // Szary
-        texDeepStone = createSolidTexture(new Color(0.4f, 0.4f, 0.4f, 1));
-        texHardStone = createSolidTexture(new Color(0.25f, 0.25f, 0.3f, 1));
-        texBedrock = createSolidTexture(new Color(0.1f, 0.1f, 0.1f, 1));
-        texGold = createSolidTexture(new Color(1f, 0.9f, 0.1f, 1), 16, 16);
-
-        // dodajemy narazie wciąż generowane powyżej, tekstury do lowerLayersTextures
-        lowerLayersTextures.put(LayerType.LAYER2, texDirt);
-        lowerLayersTextures.put(LayerType.LAYER3, texDarkSoil);
-        lowerLayersTextures.put(LayerType.LAYER4, texStone);
-        lowerLayersTextures.put(LayerType.LAYER5, texDeepStone);
-        lowerLayersTextures.put(LayerType.LAYER6, texHardStone);
-        lowerLayersTextures.put(LayerType.BEDROCK, texBedrock);
-    }
-
-    // ładowanie textur svg do mapy na podstawie biomów
-    private void loadTextures(){
-        layer1Textures.put(BiomeType.H0T0, svg.createTexture("bases/h0/h0t0.svg", TILE_SIZE, TILE_SIZE));
-        layer1Textures.put(BiomeType.H0T1, svg.createTexture("bases/h0/h0t1.svg", TILE_SIZE, TILE_SIZE));
-        layer1Textures.put(BiomeType.H0T2, svg.createTexture("bases/h0/h0t2.svg", TILE_SIZE, TILE_SIZE));
-
-        layer1Textures.put(BiomeType.H1T0, svg.createTexture("bases/h1/h1t0.svg", TILE_SIZE, TILE_SIZE));
-        layer1Textures.put(BiomeType.H1T1, svg.createTexture("bases/h1/h1t1.svg", TILE_SIZE, TILE_SIZE));
-        layer1Textures.put(BiomeType.H1T2, svg.createTexture("bases/h1/h1t2.svg", TILE_SIZE, TILE_SIZE));
-
-        layer1Textures.put(BiomeType.H2T0, svg.createTexture("bases/h2/h2t0.svg", TILE_SIZE, TILE_SIZE));
-        layer1Textures.put(BiomeType.H2T1, svg.createTexture("bases/h2/h2t1.svg", TILE_SIZE, TILE_SIZE));
-        layer1Textures.put(BiomeType.H2T2, svg.createTexture("bases/h2/h2t2.svg", TILE_SIZE, TILE_SIZE));
-
-
-        lowerLayersTextures.put(LayerType.LAYER1, layer1Textures.get(BiomeType.H1T1));
+        // Update effects
+        player.update(Gdx.graphics.getDeltaTime());
+        player.updateCollectMessage(Gdx.graphics.getDeltaTime());
+        if (digEffect != null) digEffect.update(Gdx.graphics.getDeltaTime());
     }
 
     private void handleInput(float dt) {
-        if (Gdx.input.isKeyPressed(Input.Keys.W)) camera.translate(0, CAMERA_SPEED * dt);
-        if (Gdx.input.isKeyPressed(Input.Keys.S)) camera.translate(0, -CAMERA_SPEED * dt);
-        if (Gdx.input.isKeyPressed(Input.Keys.A)) camera.translate(-CAMERA_SPEED * dt, 0);
-        if (Gdx.input.isKeyPressed(Input.Keys.D)) camera.translate(CAMERA_SPEED * dt, 0);
-        if (Gdx.input.isKeyPressed(Input.Keys.Q)) camera.zoom += 1.0f * dt;
+        float speed = 200.0f; // player movement speed
+        float dx = 0, dy = 0;
+
+        // Player movement with WASD
+        if (Gdx.input.isKeyPressed(Input.Keys.W)) { player.y += speed * dt; dy = 1; }
+        if (Gdx.input.isKeyPressed(Input.Keys.S)) { player.y -= speed * dt; dy = -1; }
+        if (Gdx.input.isKeyPressed(Input.Keys.A)) { player.x -= speed * dt; dx = -1; }
+        if (Gdx.input.isKeyPressed(Input.Keys.D)) { player.x += speed * dt; dx = 1; }
+
+        // Update player eye tracking
+        player.setMovement(dx, dy);
+
+        // Tool selection
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) currentTool = ToolType.HAND;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) currentTool = ToolType.SHOVEL;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)) currentTool = ToolType.PICKAXE;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_4)) currentTool = ToolType.DRILL;
+
+        // Zoom
+        if (Gdx.input.isKeyPressed(Input.Keys.Q)) {
+            camera.zoom += 1.0f * dt;
+            camera.zoom = Math.min(4.0f, camera.zoom);
+        }
         if (Gdx.input.isKeyPressed(Input.Keys.E)) {
             camera.zoom -= 1.0f * dt;
-            if (camera.zoom < 0.1f) camera.zoom = 0.1f;
+            camera.zoom = Math.max(0.25f, camera.zoom);
         }
+
+        // Debug toggles
         if (Gdx.input.isKeyJustPressed(Input.Keys.Z)) drawNumbers = !drawNumbers;
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) Gdx.app.exit();
+        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
+            if (hud != null) hud.toggleControls();
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
             debugTemperature = !debugTemperature;
             debugHumidity = false;
@@ -343,6 +215,10 @@ public class Main extends ApplicationAdapter implements InputProcessor {
             debugHumidity = !debugHumidity;
             debugTemperature = false;
         }
+
+        // Snap camera position to pixel-aligned coordinates to prevent blur
+        camera.position.x = Math.round(camera.position.x);
+        camera.position.y = Math.round(camera.position.y);
     }
 
     @Override
@@ -351,155 +227,53 @@ public class Main extends ApplicationAdapter implements InputProcessor {
             Vector3 worldPos = camera.unproject(new Vector3(screenX, screenY, 0));
             int gridX = (int) Math.floor(worldPos.x / TILE_SIZE);
             int gridY = (int) Math.floor(worldPos.y / TILE_SIZE);
-            gameWorld.digAt(gridX, gridY);
+
+            // Dig with current tool power
+            ResourceType lastResource = null;
+            for (int i = 0; i < currentTool.power; i++) {
+                gameWorld.digAt(gridX, gridY);
+                // Check for resource after each dig
+                ResourceType res = gameWorld.getResourceAt(gridX, gridY);
+                if (res != null) lastResource = res;
+            }
+
+            // Collect resources if found
+            if (lastResource != null) {
+                player.collectResource(lastResource);
+            }
+
+            // Visual dig effects
+            if (digEffect != null) {
+                digEffect.addDigEffect(gridX, gridY, TILE_SIZE);
+                // Tool swing animation
+                Texture toolTex = textureManager.toolIcons.get(currentTool);
+                if (toolTex != null) {
+                    digEffect.addToolSwingEffect(gridX, gridY, TILE_SIZE, toolTex);
+                }
+                if (lastResource != null) {
+                    digEffect.addSparkleEffect(gridX, gridY, TILE_SIZE);
+                }
+            }
+
             return true;
         }
         return false;
     }
 
-    private Texture createSolidTexture(Color color, int w, int h) {
-        Pixmap pixmap = new Pixmap(w, h, Pixmap.Format.RGBA8888);
-        pixmap.setColor(color);
-        pixmap.fill();
-        // Dodajemy ramkę dla lepszej widoczności kratek
-        //pixmap.setColor(color.cpy().mul(0.8f));
-        //pixmap.drawRectangle(0, 0, w, h);
-        Texture tex = new Texture(pixmap);
-        pixmap.dispose();
-        return tex;
-    }
-
-    private Texture createSolidTexture(Color color) { return createSolidTexture(color, TILE_SIZE, TILE_SIZE); }
-
-    // uporządkowany i troche zmodyfikowany dispose
     @Override
     public void dispose() {
         batch.dispose();
         if (font != null) font.dispose();
         if (svg != null) svg.dispose();
-
-        Set<Texture> textures = Collections.newSetFromMap(new IdentityHashMap<>());
-
-        // dodawanie textur z layers
-        if (lowerLayersTextures != null) textures.addAll(lowerLayersTextures.values());
-        if (layer1Textures != null) textures.addAll(layer1Textures.values());
-
-        // pozostałe textury
-        textures.add(texGold);
-        textures.add(whiteTexture);
-        textures.add(texObjectRock);
-        textures.add(texObjectBush);
-        textures.add(texObjectTree);
-
-        // usuwanie wszystkich
-        for (Texture t : textures) {
-            if (t != null) t.dispose();
-        }
-
+        if (textureCache != null) textureCache.dispose();
+        if (textureManager != null) textureManager.dispose();
+        if (whiteTexture != null) whiteTexture.dispose();
+        if (player != null) player.dispose();
+        if (hud != null) hud.dispose();
+        if (digEffect != null) digEffect.dispose();
     }
 
-    // Zdefiniuj kolory jako stałe poza funkcją dla optymalizacji
-    private static final Color PURE_BLUE = new Color(0f, 0f, 1f, 1f);
-    private static final Color BLUE_STRONG_GREEN = new Color(0f, 0.8f, 0.9f, 1f);
-
-    private static final Color GREEN_STRONG_BLUE = new Color(0f, 1f, 0.9f, 1f);
-    private static final Color PURE_GREEN = new Color(0f, 1f, 0f, 1f);
-    private static final Color GREEN_STRONG_RED = new Color(0.8f, 0.9f, 0f, 1f);
-
-    private static final Color RED_STRONG_GREEN = new Color(0.9f, 0.8f, 0f, 1f);
-    private static final Color PURE_RED = new Color(1f, 0f, 0f, 1f);
-
-    private static float THRESHOLD = ChunkGenerator.getBiomeDivider();
-
-    // Obiekt pomocniczy, żeby nie tworzyć nowych 'new Color()' w kółko
-    private final Color tempColor = new Color();
-
-
-    private Color getHeatmapColor(float value) {
-        // 1. Clampowanie wartości do zakresu -1 do 1
-        float val = Math.max(-1f, Math.min(1f, value));
-
-        Color startColor, endColor;
-        float rangeMin, rangeMax;
-
-        if (val < -THRESHOLD) {
-            // --- STREFA 1: od -1.0 do -0.12 ---
-            // Od Czystego Niebieskiego do Niebieskiego-Mocno-Zielonego
-            startColor = PURE_BLUE;
-            endColor = BLUE_STRONG_GREEN;
-            rangeMin = -1.0f;
-            rangeMax = -THRESHOLD;
-        } else if (val < 0) {
-            // --- STREFA 2: od -0.12 do 0.0 ---
-            // SKOK! Od Zielonego-Mocno-Niebieskiego do Czystego Zielonego
-            startColor = GREEN_STRONG_BLUE;
-            endColor = PURE_GREEN;
-            rangeMin = -THRESHOLD;
-            rangeMax = 0.0f;
-        } else if (val < THRESHOLD) {
-            // --- STREFA 3: od 0.0 do 0.12 ---
-            // Od Czystego Zielonego do Zielonego-Mocno-Czerwonego
-            startColor = PURE_GREEN;
-            endColor = GREEN_STRONG_RED;
-            rangeMin = 0.0f;
-            rangeMax = THRESHOLD;
-        } else {
-            // --- STREFA 4: od 0.12 do 1.0 ---
-            // SKOK! Od Czerwonego-Mocno-Zielonego do Czystego Czerwonego
-            startColor = RED_STRONG_GREEN;
-            endColor = PURE_RED;
-            rangeMin = THRESHOLD;
-            rangeMax = 1.0f;
-        }
-
-        // Normalizacja wartości w danym przedziale na zakres 0.0 - 1.0
-        float ratio = (val - rangeMin) / (rangeMax - rangeMin);
-
-        // Używamy metody set() i lerp() na obiekcie pomocniczym, żeby nie śmiecić w pamięci
-        return tempColor.set(startColor).lerp(endColor, ratio);
-    }
-
-    private void generateObjectTextures() {
-        // 1. KAMIEŃ (Małe szare kółko)
-        Pixmap pRock = new Pixmap(TILE_SIZE, TILE_SIZE, Pixmap.Format.RGBA8888);
-        pRock.setColor(0, 0, 0, 0); // Przezroczyste tło
-        pRock.fill();
-        pRock.setColor(Color.GRAY);
-        // Rysuje koło w środku (x=16, y=16), promień 6
-        pRock.fillCircle(TILE_SIZE / 2, TILE_SIZE / 2, 6);
-        texObjectRock = new Texture(pRock);
-        pRock.dispose();
-
-        // 2. KRZAK (Większe zielone kółko)
-        Pixmap pBush = new Pixmap(TILE_SIZE, TILE_SIZE, Pixmap.Format.RGBA8888);
-        pBush.setColor(0, 0, 0, 0);
-        pBush.fill();
-        pBush.setColor(new Color(0.1f, 0.6f, 0.1f, 1f)); // Ciemna zieleń
-        // Promień 10
-        pBush.fillCircle(TILE_SIZE / 2, TILE_SIZE / 2, 10);
-        texObjectBush = new Texture(pBush);
-        pBush.dispose();
-
-        // 3. DRZEWO (Trójkąt)
-        // LibGDX Pixmap nie ma metody fillTriangle, więc zrobimy to ręcznie lub prostymi liniami
-        Pixmap pTree = new Pixmap(TILE_SIZE, TILE_SIZE, Pixmap.Format.RGBA8888);
-        pTree.setColor(0, 0, 0, 0);
-        pTree.fill();
-        pTree.setColor(new Color(0.0f, 0.4f, 0.0f, 1f)); // Bardzo ciemna zieleń
-
-        // Prosty algorytm rysowania trójkąta (choinka)
-        int center = TILE_SIZE / 2;
-        for (int y = 4; y < TILE_SIZE - 4; y++) {
-            // Im niżej (większe y), tym szerzej
-            int width = (y - 4) / 2;
-            pTree.fillRectangle(center - width, y, width * 2 + 1, 1);
-        }
-
-        texObjectTree = new Texture(pTree);
-        pTree.dispose();
-    }
-
-    // Puste metody interfejsu InputProcessor
+    // Unused InputProcessor methods
     @Override public boolean keyDown(int keycode) { return false; }
     @Override public boolean keyUp(int keycode) { return false; }
     @Override public boolean keyTyped(char character) { return false; }
